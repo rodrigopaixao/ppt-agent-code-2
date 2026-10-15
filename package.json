@@ -1,0 +1,15 @@
+{
+  "name": "template-pptx-chat",
+  "private": true,
+  "workspaces": [
+    "apps/web"
+  ],
+  "scripts": {
+    "dev": "python3 scripts/dev.py",
+    "dev:web": "npm --prefix apps/web run dev",
+    "dev:api": ".venv/bin/uvicorn app.main:app --reload --reload-dir services/pptx --app-dir services/pptx",
+    "test": ".venv/bin/pytest services/pptx/tests && npm --prefix apps/web run lint",
+    "setup": "python3 -m venv .venv && .venv/bin/pip install -r services/pptx/requirements.txt && python3.12 -m venv .venv312 && .venv312/bin/pip install -r services/pptx/requirements-agent.txt && npm install",
+    "template:demo": ".venv/bin/python services/pptx/scripts/create_demo_template.py"
+  }
+}

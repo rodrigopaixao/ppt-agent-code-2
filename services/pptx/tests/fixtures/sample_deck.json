@@ -1,0 +1,78 @@
+{
+  "storyline": {
+    "audience": "Executive committee",
+    "objective": "Approve the next phase of the client experience programme",
+    "governing_thought": "Results are strong, but returns lag target; simplifying priority journeys is the fastest route to close the gap."
+  },
+  "cover": {"title": "Client Experience Programme", "subtitle": "Phase 2 recommendation for the executive committee", "date": "October 2026"},
+  "sections": [
+    {"name": "Performance", "summary": "Where results stand against medium-term targets"},
+    {"name": "Strategy", "summary": "The four priorities that close the gap"},
+    {"name": "Execution", "summary": "Roadmap, risks, and decisions needed today"}
+  ],
+  "slides": [
+    {"type": "executive_summary", "section": "Performance", "label": "Summary", "headline": "Earnings beat target, but returns lag; simplifying four journeys closes most of the gap by 2028",
+     "items": [
+      {"heading": "Earnings growth beat target", "detail": "Adjusted EPS grew **9.6%** against a 7%+ target, helped by positive operating leverage of **+3.0%**."},
+      {"heading": "Returns remain below ambition", "detail": "Adjusted ROE of **11.8%** is 220 bps short of the 14%+ medium-term target."},
+      {"heading": "Journey friction is the main drag", "detail": "Application drop-off is the largest leak in the business banking funnel; **two journeys** account for most of it."},
+      {"heading": "A six-quarter plan fixes it", "detail": "Four workstreams sequence diagnosis, pilots, and two scale waves with **quarterly outcome gates**."}
+    ]},
+    {"type": "agenda", "label": "Agenda", "headline": "Three questions for today"},
+    {"type": "kpis", "section": "Performance", "label": "Fiscal 2025", "headline": "Capital and earnings are strong: CET1 at 13.2% and adjusted net income up 10.2%",
+     "subheader": "Fiscal 2025 headline results", "source": "Source: Annual report 2025, pp. 4-7",
+     "items": [
+      {"value": "$9.5B", "label": "Adjusted net income", "detail": "Up 10.2% year over year"},
+      {"value": "13.2%", "label": "CET1 ratio", "detail": "Well above regulatory minimum"},
+      {"value": "+3.0%", "label": "Operating leverage", "detail": "Positive for the second year"}
+     ],
+     "commentary": ["**Expense discipline** offset slower loan growth in the home market", "Higher **fee income** in wealth management lifted revenue mix", "Credit provisions normalised but stayed within guidance"]},
+    {"type": "chart", "section": "Performance", "label": "Earnings", "headline": "Adjusted net income returned to growth in 2025 after two flat years",
+     "chart_type": "column", "chart_title": "Adjusted net income, $B", "unit": "$B", "categories": ["2022", "2023", "2024", "2025"],
+     "series": [{"name": "Adjusted net income", "values": [8.4, 8.6, 8.6, 9.5]}],
+     "highlights": ["**+10.2%** growth in 2025, the first gain since 2022", "Growth came from fee income, not balance sheet expansion", "Expense growth held below revenue growth"],
+     "source": "Source: Annual report 2025"},
+    {"type": "table", "section": "Performance", "label": "Targets", "headline": "Two of four medium-term targets are met; ROE is the clear gap",
+     "columns": ["Metric", "Fiscal 2025", "Target", "Status"],
+     "rows": [["Adjusted diluted EPS growth", "9.6%", "7%+", "Exceeded"], ["Adjusted return on equity", "11.8%", "14%+", "Below target"], ["Adjusted operating leverage", "+3.0%", "Positive", "Met"], ["CET1 ratio", "13.2%", "Strong", "Met"]],
+     "takeaway": "Closing the ROE gap requires revenue per client to grow faster than capital"},
+    {"type": "cards", "section": "Strategy", "label": "Priorities", "headline": "Four priorities focus capital where we can earn primary relationships",
+     "intro": "Each priority has a single owner and a measurable outcome",
+     "items": [
+      {"heading": "Grow in priority markets", "points": ["Allocate capital to markets with differentiated returns", "Exit sub-scale positions"]},
+      {"heading": "Earn primary relationships", "points": ["Prioritise depth over volume", "Reward advice quality, not product count"]},
+      {"heading": "Make it easy to bank with us", "points": ["Simplify the top journeys end to end", "Remove handoffs between channels"]},
+      {"heading": "Win as one team", "points": ["Shared scorecard across businesses", "Inclusive, high-performance culture"]}
+     ]},
+    {"type": "process", "section": "Strategy", "label": "Journey", "headline": "Most business clients are lost between consideration and application",
+     "steps": [
+      {"heading": "Discover", "points": ["Personalised guidance online and in branch"]},
+      {"heading": "Apply", "points": ["Pre-filled forms", "**Largest drop-off** today"]},
+      {"heading": "Decide", "points": ["Visible status and decision times"]},
+      {"heading": "Onboard", "points": ["One coordinated checklist"]},
+      {"heading": "Grow", "points": ["Relationship insights drive next best action"]}
+     ]},
+    {"type": "rows", "section": "Execution", "label": "Risks", "headline": "Five delivery risks are known and each has a named mitigation",
+     "left_header": "Risk", "right_header": "Mitigation",
+     "items": [
+      {"heading": "Macro and credit stress", "detail": "Slower growth raises provisions", "points": ["Quarterly stress tests and early-warning monitoring"]},
+      {"heading": "Cyber and fraud", "detail": "Digital journeys widen the attack surface", "points": ["Controls testing before each release", "24/7 monitoring"]},
+      {"heading": "Transformation complexity", "detail": "Many teams, shared platforms", "points": ["Dedicated PMO with milestone gates"]},
+      {"heading": "Data quality", "detail": "Inconsistent client data limits decisioning", "points": ["Metric contracts and lineage before pilots"]}
+     ]},
+    {"type": "roadmap", "section": "Execution", "label": "Roadmap", "headline": "Four workstreams move from diagnosis to scale over six quarters",
+     "periods": ["Q1", "Q2", "Q3", "Q4", "Q5", "Q6"],
+     "lanes": [
+      {"name": "Journeys", "cells": ["Select two journeys", "Diagnose", "Pilot", "Scale wave 1", "Scale wave 2", "Optimise"]},
+      {"name": "Data", "cells": ["Metric contracts", "Client 360 MVP", "Client 360 MVP", "Signals", "Evidence", "Industrialise"]},
+      {"name": "Platforms", "cells": ["Reuse inventory", "APIs", "Workflow", "Observability", "Decommission", "Decommission"]},
+      {"name": "Governance", "cells": ["Baseline scorecard", "Quarterly outcome reviews", "Quarterly outcome reviews", "Quarterly outcome reviews", "Quarterly outcome reviews", "Quarterly outcome reviews"]}
+     ]},
+    {"type": "comparison", "section": "Execution", "label": "Operating model", "headline": "Clear ownership replaces today's shared accountability",
+     "left": {"title": "Today", "points": ["Journeys owned by several product teams", "Benefits tracked inconsistently", "Risk engaged late in delivery"]},
+     "right": {"title": "Proposed", "points": ["Business owns each journey end to end", "Finance validates benefits quarterly", "Risk checkpoints built into every gate"]}},
+    {"type": "statement", "section": "Execution", "label": "Decision", "headline": "We ask the committee to approve phase 2 today",
+     "statement": "Approve **two priority journeys**, a common scorecard, and funding for reusable capabilities",
+     "points": ["Journey owners named within 30 days", "First outcome review at end of Q1", "Funding released by gate, not upfront"]}
+  ]
+}
