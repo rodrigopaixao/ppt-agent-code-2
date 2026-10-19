@@ -1,6 +1,7 @@
 import json
 import os
 import shutil
+import sys
 import tempfile
 import threading
 import uuid
@@ -173,7 +174,7 @@ class JobManager:
         return self.directory(job) / "work"
 
     def agent_python(self) -> Path:
-        return self.settings.resolve(Path(".venv312/bin/python"))
+        return Path(sys.executable)
 
     def generate(self, job: Job) -> None:
         self._run_agent(job, revision=None)
@@ -206,9 +207,7 @@ class JobManager:
                 prompt=job.prompt,
                 revision=revision,
                 slide_count=job.slide_count,
-                api_key=self.settings.anthropic_api_key,
-                base_url=self.settings.anthropic_base_url,
-                model=self.settings.anthropic_model,
+                model=self.settings.model_request(),
                 resume=job.session_id if revision else None,
                 on_activity=lambda text, detail: self.note(job, text, detail),
             )

@@ -64,22 +64,18 @@ def run_agent(
     prompt: str,
     revision: Optional[str],
     slide_count: int,
-    api_key: str,
-    base_url: str,
-    model: str,
+    model: dict,
     resume: Optional[str],
     on_activity: Callable[[str, str], None],
 ) -> str:
     if not agent_python.exists():
-        raise RuntimeError("The Claude Agent SDK runtime is missing. Run `npm run setup` with Python 3.12 available.")
+        raise RuntimeError("The Python runtime is missing. Run `npm run setup`.")
     request = {
+        **model,
         "workspace": str(workspace),
         "prompt": prompt,
         "revision": revision,
         "slide_count": slide_count,
-        "api_key": api_key,
-        "base_url": base_url,
-        "model": model,
         "resume": resume,
     }
     process = subprocess.Popen(

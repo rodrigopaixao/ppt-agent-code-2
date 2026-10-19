@@ -1,6 +1,6 @@
 # Template-driven PPTX chat
 
-A local web application that uses a Claude model through OpenRouter to plan presentations, then renders them into an authorized PowerPoint template. Prompts and extracted document text are sent to OpenRouter; uploaded files, generated decks, and previews remain on this machine.
+A local web application that uses Google Gemini, through OpenRouter, to plan and write presentations, then renders them into an authorized PowerPoint template. Prompts, extracted document text, and rendered slide images are sent to OpenRouter; uploaded files, generated decks, and previews remain on this machine.
 
 ## Requirements
 
@@ -14,7 +14,7 @@ A local web application that uses a Claude model through OpenRouter to plan pres
 
 ```bash
 cp .env.example .env
-# Set ANTHROPIC_API_KEY to an OpenRouter key in .env
+# Set OPENROUTER_API_KEY in .env (OPENROUTER_MODEL defaults to google/gemini-3.8-flash)
 npm run setup
 npm run template:demo # optional smoke-test template
 npm run dev
@@ -27,15 +27,16 @@ Put the authorized template at `assets/templates/client-a-template.pptx`, or cha
 ## Workflow
 
 1. Enter a request and optionally attach PDF, DOCX, or TXT source files.
-2. A Claude Agent SDK session, routed through OpenRouter, reads a catalogue of the template's example slides.
-3. The agent edits those slides with `python-pptx`, including native tables and charts, renders the result, and fixes what it sees.
-4. Review the thumbnails, ask for a revision in the same agent session, and download the editable `.pptx`.
+2. Gemini plans the storyline and writes the whole deck as JSON, choosing a slide type for each point.
+3. The renderer draws each slide in the template's masters. Layout and fact checks send problems back to Gemini to fix.
+4. The slides are rendered to images and Gemini reviews them as an engagement manager would, then the writer applies the fixes.
+5. Review the slides, edit text in place or in the edit panel, ask for a revision (which continues the same conversation), and download the editable `.pptx`.
 
-The agent runtime uses Python 3.12 in `.venv312` because the Claude Agent SDK does not support the system Python. `npm run setup` creates it when `python3.12` is available. Install LibreOffice and Poppler if you want the agent to review real slide images rather than text previews.
+The pipeline runs in a separate Python process and calls OpenRouter's chat completions API directly. Conversations are kept in each job's `work/sessions/` folder so revisions can continue them. Install LibreOffice and Poppler so the review step can see real slide images.
 
 ## Data handling
 
-The service extracts documents locally, but sends the prompt and extracted text to OpenRouter. It does not log document content. Jobs are stored under `data/` and are deleted automatically after 24 hours or when the service restarts. Do not use material that is not approved for the configured model provider.
+The service extracts documents locally, but sends the prompt, extracted text, and rendered slide images to OpenRouter, which forwards them to Google. It does not log document content. Jobs are stored under `data/` and are deleted automatically after 24 hours or when the service restarts. Do not use material that is not approved for the configured model provider.
 
 ## Template guidance
 

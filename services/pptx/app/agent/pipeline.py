@@ -3,11 +3,11 @@
 import json
 import subprocess
 from pathlib import Path
-from typing import Awaitable, Callable, List, Optional, Tuple
+from typing import Awaitable, Callable, List, Optional, Sequence, Tuple
 
 from app.agent.deckspec import apply_patch, catalog, header_rules, structure_errors, unsupported_figures, with_agenda
 from app.agent.llm import ask as ask_model
-from app.agent.llm import json_object
+from app.agent.llm import has_session, json_object
 from app.agent.renderer import build
 
 Ask = Callable[..., Awaitable[Tuple[str, str]]]
@@ -88,19 +88,19 @@ async def run_pipeline(
     ask: Optional[Ask] = None,
     render: Optional[Callable[[Path], List[Path]]] = None,
 ) -> str:
+    session = request.get("resume") or None
     if ask is None:
-        async def ask(system: str, prompt: str, resume: Optional[str] = None, read_files: bool = False) -> Tuple[str, str]:
-            return await ask_model(
-                workspace, request, system, prompt, resume=resume, read_files=read_files,
-                max_turns=40 if read_files else 3, budget=2.5,
-            )
+        if not has_session(workspace, session):
+            session = None
+
+        async def ask(system: str, prompt: str, resume: Optional[str] = None, images: Sequence[Tuple[str, Path]] = ()) -> Tuple[str, str]:
+            return await ask_model(workspace, request, system, prompt, resume=resume, images=images)
     render = render or render_previews
     template = workspace / "template.pptx"
     deck_path = workspace / "deck.json"
     sources = _text(workspace / "sources.md")
     facts = sources + "\n" + str(request.get("prompt") or "") + "\n" + str(request.get("revision") or "")
     system = writer_system()
-    session = request.get("resume") or None
 
     if request.get("revision") and deck_path.exists():
         note(emit, "Revising the deck", str(request["revision"]))
@@ -241,18 +241,21 @@ async def _settle(ask: Ask, system: str, deck: dict, session: Optional[str], fac
 
 async def _review(ask: Ask, deck: dict, previews: List[Path]) -> List[dict]:
     slides = deck.get("slides") or []
-    lines = [f"Governing thought: {_governing(deck)}", "", "Read every image below before you answer.", ""]
+    lines = [f"Governing thought: {_governing(deck)}", "", "Slides, in order:"]
+    images: List[Tuple[str, Path]] = []
     for index, path in enumerate(previews):
-        image = f"previews/{path.name}"
         if index == 0:
-            lines.append(f"{image} -> slide 0: cover: {(deck.get('cover') or {}).get('title', '')}")
-            continue
-        if index - 1 >= len(slides):
+            line = f"slide 0: cover: {(deck.get('cover') or {}).get('title', '')}"
+        elif index - 1 < len(slides):
+            slide = slides[index - 1]
+            line = f"slide {index}: {slide.get('type')}: {slide.get('label', '')} | {slide.get('headline', '')}"
+        else:
             break
-        slide = slides[index - 1]
-        lines.append(f"{image} -> slide {index}: {slide.get('type')}: {slide.get('label', '')} | {slide.get('headline', '')}")
+        lines.append(line)
+        images.append((f"Image of {line}", path))
+    lines += ["", "Look at every slide image that follows before you answer."]
     try:
-        text, _session = await ask(REVIEWER, "\n".join(lines), None, True)
+        text, _session = await ask(REVIEWER, "\n".join(lines), None, images)
     except Exception:
         return []
     reply = json_object(text) or {}

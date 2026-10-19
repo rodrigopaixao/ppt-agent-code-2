@@ -139,7 +139,7 @@ export default function Home() {
             {job && ACTIVE.has(job.status) ? `Working · ${job.progress}%` : "Create presentation"}
           </button>
           <p className="notice">
-            Prompts and extracted source text are sent to OpenRouter. Files and generated decks stay
+            Prompts, extracted source text, and slide images are sent to Gemini through OpenRouter. Files and generated decks stay
             on this computer.
           </p>
           {spec && (

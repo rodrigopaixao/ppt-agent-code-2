@@ -39,7 +39,7 @@ def health() -> dict:
     return {
         "status": "ok",
         "template_ready": manager.template_path.exists(),
-        "model_configured": bool(settings.anthropic_api_key and settings.anthropic_api_key != "<API_KEY>"),
+        "model_configured": settings.model_configured,
     }
 
 

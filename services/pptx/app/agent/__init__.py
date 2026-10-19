@@ -1,1 +1,1 @@
-"""Claude Agent SDK presentation workflow."""
+"""Gemini presentation workflow."""

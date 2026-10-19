@@ -113,8 +113,8 @@ class ScriptedModel:
         self.replies = list(replies)
         self.calls = []
 
-    async def __call__(self, system, prompt, resume=None, read_files=False):
-        self.calls.append({"system": system, "prompt": prompt, "resume": resume, "read_files": read_files})
+    async def __call__(self, system, prompt, resume=None, images=()):
+        self.calls.append({"system": system, "prompt": prompt, "resume": resume, "images": list(images)})
         return self.replies.pop(0), "session-1"
 
 
@@ -153,7 +153,8 @@ def test_pipeline_fixes_overflow_then_applies_review(tmp_path: Path, synthetic_t
     assert saved["slides"][2]["items"][0]["value"] == "$9.5B"
     assert saved["slides"][0]["headline"] == "Reviewed headline that states the answer"
     assert "99.9" in model.calls[1]["prompt"]
-    assert model.calls[2]["read_files"] is True
+    assert [path for _label, path in model.calls[2]["images"]] == images
+    assert model.calls[2]["images"][0][0].startswith("Image of slide 0: cover")
     assert (workspace / "presentation.pptx").exists()
 
 
