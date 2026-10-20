@@ -464,6 +464,7 @@ function lineStyle(para: RegionPara, scale: number, first: boolean): CSSProperti
   return {
     fontSize: points(para.size),
     fontWeight: para.bold ? 700 : 400,
+    fontStyle: para.italic ? "italic" : undefined,
     color: `#${para.color}`,
     textAlign: ALIGN[para.align],
     textTransform: para.caps ? "uppercase" : undefined,

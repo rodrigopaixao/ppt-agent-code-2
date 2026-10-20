@@ -87,7 +87,7 @@ This part runs while the request is still open, so problems come back as immedia
 **`services/pptx/app/agent/pipeline.py` → `_write`, `services/pptx/app/agent/llm.py` → `ask`**
 
 1. The system prompt is `WRITER`, with two things filled in from `services/pptx/app/agent/deckspec.py`:
-   - `catalog()` lists the 12 slide types: `executive_summary`, `kpis`, `cards`, `process`, `roadmap`, `table`, `chart`, `comparison`, `rows`, `statement`, `agenda` and `section`. For each one it gives when to use it, its fields with character and count limits, and an example.
+   - `catalog()` lists the 15 slide types: `executive_summary`, `kpis`, `cards`, `process`, `journey`, `roadmap`, `timeline`, `table`, `chart`, `comparison`, `rows`, `strategy_house`, `statement`, `agenda` and `section`. For each one it gives when to use it, its fields with character and count limits, and an example.
    - `header_rules()` lists the header fields every content slide has: section, label, headline, subheader, source and takeaway.
 2. The prompt asks the writer to work in this order:
    1. Decide the audience, the objective, and the governing thought.

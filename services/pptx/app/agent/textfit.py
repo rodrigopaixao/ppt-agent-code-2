@@ -41,6 +41,7 @@ class Para:
     caps: bool = False
     spacing: int = 0
     accent: str = ""
+    italic: bool = False
 
 
 @lru_cache(maxsize=4)

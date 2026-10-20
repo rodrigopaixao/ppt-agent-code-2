@@ -18,6 +18,9 @@ const TYPE_NAMES: Record<string, string> = {
   chart: "Chart",
   comparison: "Comparison",
   rows: "Rows",
+  strategy_house: "Strategy house",
+  timeline: "Dated timeline",
+  journey: "Journey map",
   statement: "Statement",
   agenda: "Agenda",
   section: "Section divider",
@@ -34,6 +37,10 @@ const SINGULAR: Record<string, string> = {
   series: "Series",
   highlights: "Highlight",
   commentary: "Comment",
+  pillars: "Pillar",
+  milestones: "Milestone",
+  deliverables: "Deliverable",
+  meetings: "Meeting",
 };
 
 const LABELS: Record<string, string> = {
@@ -46,6 +53,17 @@ const LABELS: Record<string, string> = {
   right_header: "Right column header",
   chart_type: "Chart type",
   chart_title: "Chart title",
+  aspiration: "Aspiration (top band)",
+  outcome: "Outcome (bottom band)",
+  start: "Calendar start (YYYY-MM-DD)",
+  end: "End date (YYYY-MM-DD)",
+  kind: "Kind: milestone, submission or review",
+  milestones_heading: "Milestones row label",
+  deliverables_heading: "Deliverables row label",
+  meetings_heading: "Meetings row label",
+  meeting_name: "Meeting name, e.g. SteerCo",
+  via: "Channel on the arrow into this step",
+  highlight: "Highlighted step (number)",
 };
 
 let counter = 0;
@@ -728,7 +746,8 @@ function blankSlide(
 }
 
 function placeholder(key: string, value: unknown): unknown {
-  if (key === "chart_type") return value;
+  if (key === "chart_type" || key === "kind" || key === "highlight") return value;
+  if (typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value)) return value;
   if (typeof value === "string") return LABELS[key] ?? SINGULAR[key] ?? humanize(key);
   if (typeof value === "number") return 1;
   if (Array.isArray(value)) {

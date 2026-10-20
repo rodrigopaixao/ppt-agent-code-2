@@ -39,7 +39,7 @@ def test_bold_markup_becomes_runs() -> None:
 def test_sample_deck_is_valid_and_catalog_lists_every_type() -> None:
     assert structure_errors(sample()) == []
     text = catalog()
-    for name in ("executive_summary", "kpis", "cards", "process", "roadmap", "table", "chart", "comparison", "rows"):
+    for name in ("executive_summary", "kpis", "cards", "process", "roadmap", "table", "chart", "comparison", "rows", "strategy_house"):
         assert f"### {name}" in text
 
 
@@ -106,6 +106,178 @@ def test_build_reports_text_that_cannot_fit(tmp_path: Path) -> None:
     deck["slides"][5]["items"][0]["points"] = ["A very long point that keeps going " * 4] * 4
     problems = build(REPOSITORY, deck, tmp_path / "deck.pptx")
     assert any(problem.startswith("Slide 6 (cards) card 1 points") for problem in problems)
+
+
+def strategy_house(slide: dict, points: bool) -> dict:
+    pillars = [
+        {"heading": "Digital-first advice", "points": ["Guided journeys in the app", "Advisers on video when needed"]},
+        {"heading": "Simple, fair pricing", "points": ["One fee schedule across channels"]},
+        {"heading": "Connected client data", "points": ["Single client view for every team", "Real-time next best action"]},
+        {"heading": "Faster delivery", "points": ["Quarterly releases moving to monthly"]},
+    ]
+    if not points:
+        pillars = [{"heading": pillar["heading"]} for pillar in pillars]
+    return {
+        "type": "strategy_house",
+        "section": slide["section"],
+        "label": "Strategy",
+        "headline": "Four pillars deliver the digital ambition, built on shared data and delivery foundations",
+        "aspiration": "Be the primary digital partner for our clients…",
+        "pillars": pillars,
+        "outcome": "…to drive sustainable, profitable growth",
+    }
+
+
+@pytest.mark.skipif(REPOSITORY is None, reason="The slide repository template is not available.")
+@pytest.mark.parametrize("points", [True, False])
+def test_strategy_house_fits_and_every_part_is_editable(tmp_path: Path, points: bool) -> None:
+    deck = sample()
+    deck["slides"][5] = strategy_house(deck["slides"][5], points)
+    assert structure_errors(deck) == []
+    regions: list = []
+    assert build(REPOSITORY, deck, tmp_path / "deck.pptx", regions) == []
+    paths = {tuple(para["path"]) for region in regions if region["slide"] == 6 for para in region["paras"]}
+    assert {("slides", 5, "aspiration"), ("slides", 5, "outcome"), ("slides", 5, "pillars", 3, "heading")} <= paths
+    assert (("slides", 5, "pillars", 0, "points", 1) in paths) == points
+
+
+def journey(slide: dict) -> dict:
+    hand_off = {"title": "Hand-off", "text": "**Appointment booking** or **on-demand support** offered in the app", "via": "Digital self-serve (mobile / web)"}
+    adviser = {"title": "Adviser", "text": "**Video or branch** adviser completes the request", "via": "Video or in person"}
+    return {
+        "type": "journey",
+        "section": slide["section"],
+        "label": "Hand-offs",
+        "headline": "Digital entry points need a clear hand-off to advisers for clients with complex needs",
+        "subheader": "Inbound client journey map",
+        "lanes": [
+            {"name": "Simple needs", "description": "Little information needed, short tasks", "highlight": "4", "steps": [
+                {"title": "Research", "text": "**Digital discovery** of simple products and services"},
+                {"title": "Self-serve", "text": "Client **completes the task digitally** without help", "via": "Digital self-serve (mobile / web)"},
+                {"title": "Support needed", "text": "Client **needs a person** and cannot finish digitally", "via": "Digital self-serve (mobile / web)"},
+                hand_off,
+                adviser,
+            ]},
+            {"name": "Complex needs", "highlight": "2", "steps": [{"title": "Research", "text": "**Digital discovery** of complex products"}, hand_off, adviser]},
+        ],
+    }
+
+
+@pytest.mark.skipif(REPOSITORY is None, reason="The slide repository template is not available.")
+def test_journey_fits_and_every_part_is_editable(tmp_path: Path) -> None:
+    deck = sample()
+    deck["slides"][5] = journey(deck["slides"][5])
+    assert structure_errors(deck) == []
+    regions: list = []
+    assert build(REPOSITORY, deck, tmp_path / "deck.pptx", regions) == []
+    paths = {tuple(para["path"]) for region in regions if region["slide"] == 6 for para in region["paras"]}
+    expected = {
+        ("slides", 5, "lanes", 0, "name"),
+        ("slides", 5, "lanes", 0, "description"),
+        ("slides", 5, "lanes", 0, "steps", 4, "text"),
+        ("slides", 5, "lanes", 1, "steps", 2, "via"),
+        ("slides", 5, "lanes", 1, "steps", 0, "title"),
+    }
+    assert expected <= paths
+
+
+def test_journey_highlight_must_name_a_step() -> None:
+    deck = sample()
+    deck["slides"][5] = journey(deck["slides"][5])
+    deck["slides"][5]["lanes"][1]["highlight"] = "4"
+    assert any("lanes #2 highlight must be a step number from 1 to 3" in error for error in structure_errors(deck))
+
+
+def timeline(slide: dict) -> dict:
+    return {
+        "type": "timeline",
+        "section": slide["section"],
+        "label": "Plan",
+        "headline": "Platform migration completes by late September, with three steering checkpoints",
+        "start": "2026-06-15",
+        "end": "2026-09-25",
+        "milestones": [
+            {"date": "2026-06-19", "label": "Business case approved"},
+            {"date": "2026-07-06", "end": "2026-07-17", "label": "Vendor proposals due", "kind": "submission"},
+            {"date": "2026-07-20", "end": "2026-08-07", "label": "Security review", "kind": "review"},
+            {"date": "2026-08-14", "label": "Pilot go-live"},
+            {"date": "2026-09-21", "label": "Full cut-over"},
+        ],
+        "deliverables": [
+            {"date": "2026-06-26", "label": "Target architecture"},
+            {"date": "2026-08-21", "label": "Pilot results report"},
+        ],
+        "meeting_name": "SteerCo",
+        "meetings": [
+            {"date": "2026-07-03", "title": "Mobilisation", "points": ["Confirm scope and budget", "Agree vendor shortlist"]},
+            {"date": "2026-08-12", "title": "Pilot readiness", "points": ["Review security findings", "Approve pilot go-live"]},
+            {"date": "2026-09-16", "title": "Cut-over decision", "points": ["Pilot results and lessons", "Go or no-go for cut-over"]},
+        ],
+    }
+
+
+@pytest.mark.skipif(REPOSITORY is None, reason="The slide repository template is not available.")
+def test_timeline_fits_and_every_part_is_editable(tmp_path: Path) -> None:
+    deck = sample()
+    deck["slides"][5] = timeline(deck["slides"][5])
+    assert structure_errors(deck) == []
+    regions: list = []
+    assert build(REPOSITORY, deck, tmp_path / "deck.pptx", regions) == []
+    paths = {tuple(para["path"]) for region in regions if region["slide"] == 6 for para in region["paras"]}
+    expected = {
+        ("slides", 5, "milestones", 2, "label"),
+        ("slides", 5, "deliverables", 1, "label"),
+        ("slides", 5, "meetings", 0, "title"),
+        ("slides", 5, "meetings", 2, "points", 1),
+        ("slides", 5, "milestones_heading"),
+    }
+    assert expected <= paths
+
+
+@pytest.mark.skipif(REPOSITORY is None, reason="The slide repository template is not available.")
+def test_timeline_reports_labels_too_crowded_to_fit(tmp_path: Path) -> None:
+    deck = sample()
+    deck["slides"][5] = timeline(deck["slides"][5])
+    deck["slides"][5]["milestones"][3:4] = [
+        {"date": "2026-08-12", "label": "Pilot go-live"},
+        {"date": "2026-08-13", "label": "Infrastructure provisioning"},
+        {"date": "2026-08-14", "label": "Environment accreditation"},
+    ]
+    problems = build(REPOSITORY, deck, tmp_path / "deck.pptx")
+    assert any("milestones 5 label: its date is too close" in problem for problem in problems)
+
+
+def test_timeline_dates_are_checked() -> None:
+    deck = sample()
+    deck["slides"][5] = timeline(deck["slides"][5])
+    slide = deck["slides"][5]
+    slide["milestones"][0]["date"] = "June 19"
+    slide["milestones"][1]["end"] = "2026-10-02"
+    slide["milestones"][3]["kind"] = "deadline"
+    slide["meetings"][0]["date"] = "2026-06-01"
+    errors = " ".join(structure_errors(deck))
+    assert "milestones #1 date must be a date written YYYY-MM-DD" in errors
+    assert "milestones #2 end 2026-10-02 falls after the calendar end" in errors
+    assert "milestones #4 kind must be one of" in errors
+    assert "meetings #1 date 2026-06-01 falls outside start to end" in errors
+
+    slide = timeline(deck["slides"][4])
+    slide["end"] = "2027-03-01"
+    deck["slides"][5] = slide
+    assert any("26 weeks" in error for error in structure_errors(deck))
+
+
+def test_unsupported_figures_flags_invented_dates() -> None:
+    deck = sample()
+    sources = json.dumps(deck) + (
+        " Business case approval on June 19th, proposals due 6 July to 7/17. Security review 20 July to Aug 7. "
+        "Pilot go-live 08/14 and cut-over September 21. Architecture by June 26 and pilot report by 21 August. "
+        "SteerCo meetings on July 3, August 12 and September 16."
+    )
+    deck["slides"][5] = timeline(deck["slides"][5])
+    assert unsupported_figures(deck, sources) == []
+    deck["slides"][5]["meetings"][1]["date"] = "2026-08-13"
+    assert "2026-08-13" in unsupported_figures(deck, sources)
 
 
 class ScriptedModel:

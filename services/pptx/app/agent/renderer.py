@@ -2,8 +2,9 @@
 
 from copy import deepcopy
 from dataclasses import dataclass
+from datetime import date, timedelta
 from pathlib import Path
-from typing import Callable, Dict, List, Optional, Sequence, Tuple
+from typing import Callable, Dict, List, Optional, Sequence, Tuple, Union
 
 from lxml import etree
 from pptx import Presentation
@@ -15,8 +16,8 @@ from pptx.enum.text import MSO_ANCHOR, MSO_AUTO_SIZE, PP_ALIGN
 from pptx.oxml.ns import qn
 from pptx.util import Inches, Pt
 
-from app.agent.deckspec import TYPES, section_number
-from app.agent.textfit import BULLET_INDENT, Para, block_height, fit, line_count, plain, runs, shrink
+from app.agent.deckspec import TYPES, parse_day, section_number
+from app.agent.textfit import BULLET_INDENT, Para, block_height, fit, line_count, plain, runs, shrink, text_width, wrap
 
 RED = "EC111A"
 DARK_RED = "B10D13"
@@ -24,6 +25,14 @@ TAN = "F5EFE8"
 TAN_DARK = "E5D7C5"
 STONE = "D8D6CA"
 STONE_DARK = "BCB8A4"
+DEEP_RED = "C00000"
+LIGHT_GREY = "F6F6F6"
+BAND_GREY = "F2F2F2"
+REVIEW_GREY = "D9D9D9"
+MILESTONE_GREEN = "00B050"
+DATE_BLUE = "0070C0"
+SUBMISSION_TAN = "D7C0A3"
+SUBMISSION_BROWN = "805F38"
 GREY = "595959"
 BLACK = "000000"
 WHITE = "FFFFFF"
@@ -150,6 +159,7 @@ class Canvas:
                         "space_before": round(para.space_before, 2),
                         "caps": para.caps,
                         "spacing": para.spacing,
+                        "italic": para.italic,
                     }
                     for para, path, extra in zip(paras, edit.paths, also)
                 ],
@@ -191,14 +201,16 @@ class Canvas:
             item.line.fill.background()
         return item
 
-    def line(self, x1: float, y1: float, x2: float, y2: float, color: str = STONE, width: float = 0.75, dash: bool = False) -> None:
+    def line(
+        self, x1: float, y1: float, x2: float, y2: float, color: str = STONE, width: float = 0.75, dash: Union[bool, str] = False
+    ) -> None:
         connector = self.slide.shapes.add_connector(MSO_CONNECTOR.STRAIGHT, Inches(x1), Inches(y1), Inches(x2), Inches(y2))
         connector.line.color.rgb = RGBColor.from_string(color)
         connector.line.width = Pt(width)
         if dash:
             line_props = connector.line._get_or_add_ln()  # noqa: SLF001
             dash_node = etree.SubElement(line_props, qn("a:prstDash"))
-            dash_node.set("val", "sysDash")
+            dash_node.set("val", dash if isinstance(dash, str) else "sysDash")
 
     def text(
         self,
@@ -277,6 +289,8 @@ def write_paragraphs(frame, paras: Sequence[Para]) -> None:
             run.text = text.upper() if spec.caps else text
             run.font.size = Pt(spec.size)
             run.font.bold = spec.bold or bold
+            if spec.italic:
+                run.font.italic = True
             color = spec.accent if (bold and spec.accent) else spec.color
             run.font.color.rgb = RGBColor.from_string(color)
             if spec.spacing:
@@ -710,6 +724,284 @@ def _spans(cells: Sequence[str]) -> List[Tuple[int, int, str]]:
     return spans
 
 
+JOURNEY_PANEL = 1.69
+JOURNEY_GAP = 0.27
+ARROW_GREY = "A6A6A6"
+VIA_GREY = "7F7F7F"
+SEPARATOR = "E5E1D7"
+
+
+def _journey(c: Canvas, data: dict, box: Box, deck: dict) -> None:
+    lanes = data["lanes"]
+    count = max(len(lane["steps"]) for lane in lanes)
+    area_x = box.x + JOURNEY_PANEL + 0.33
+    area_w = box.right - area_x
+    column = min(1.9, area_w / count - 0.15)
+    pitch = (area_w - column) / (count - 1)
+    via_w = min(1.45, pitch - 0.45)
+    lane_h = min(2.3, (box.h - JOURNEY_GAP * (len(lanes) - 1)) / len(lanes))
+    first = box.y + (box.h - lane_h * len(lanes) - JOURNEY_GAP * (len(lanes) - 1)) / 2
+    tops = [first + index * (lane_h + JOURNEY_GAP) for index in range(len(lanes))]
+
+    def key_step(lane: dict) -> int:
+        value = str(lane.get("highlight") or "").strip()
+        return int(value) - 1 if value.isdigit() else -1
+
+    def panel_paras(lane: dict) -> List[Para]:
+        paras = [Para(lane["name"], 10, bold=True, caps=True)]
+        if lane.get("description"):
+            paras.append(Para(lane["description"], 10, space_before=8))
+        return paras
+
+    def step_paras(lane: dict, index: int) -> Tuple[List[Para], List[Para]]:
+        step, color = lane["steps"][index], RED if index == key_step(lane) else BLACK
+        return [Para(step["title"], 10, bold=True, color=color, align="c", caps=True)], [Para(step["text"], 9.5, color=color, align="c")]
+
+    steps = [(i, j) for i, lane in enumerate(lanes) for j in range(len(lane["steps"]))]
+    panel_amount = c.uniform([(panel_paras(lane), JOURNEY_PANEL - 0.24, lane_h - 0.3, f"lane {i + 1} name and description") for i, lane in enumerate(lanes)], 8)
+    title_amount = c.uniform([(step_paras(lanes[i], j)[0], column, 0.36, f"lane {i + 1} step {j + 1} title") for i, j in steps], 8)
+    title_h = max(block_height(shrink(step_paras(lanes[i], j)[0], title_amount, 8), column) for i, j in steps) + 0.02
+    text_top = 1.01 + title_h
+    text_h = lane_h - text_top
+    text_amount = c.uniform([(step_paras(lanes[i], j)[1], column, text_h, f"lane {i + 1} step {j + 1} text") for i, j in steps], 8)
+    vias = [(i, j) for i, j in steps if j and lanes[i]["steps"][j].get("via")]
+    via_amount = c.uniform([([Para(lanes[i]["steps"][j]["via"], 8)], via_w, 0.38, f"lane {i + 1} step {j + 1} via") for i, j in vias], 7)
+
+    for i, (lane, top) in enumerate(zip(lanes, tops)):
+        panel = Box(box.x, top, JOURNEY_PANEL, lane_h)
+        c.rect(panel, TAN)
+        paths = [("lanes", i, "name")] + ([("lanes", i, "description")] if lane.get("description") else [])
+        c.text(
+            Box(panel.x + 0.12, top + 0.15, panel.w - 0.24, lane_h - 0.3), panel_paras(lane), anchor="m", amount=panel_amount,
+            floor=8, edit=c.fields(*paths),
+        )
+        key = key_step(lane)
+        centre_y = top + 0.29 + 0.325
+        for j, step in enumerate(lane["steps"]):
+            x = area_x + j * pitch
+            middle = x + column / 2
+            circle = Box(middle - 0.325, top + 0.29, 0.65, 0.65)
+            c.rect(circle, RED if j == key else TAN, shape=MSO_SHAPE.OVAL)
+            c.text(circle, [Para(str(j + 1), 16, bold=True, color=WHITE if j == key else GREY, align="c")], anchor="m", amount=0, inset=(0, 0))
+            title, text = step_paras(lane, j)
+            c.text(Box(x, top + 0.99, column, title_h), title, anchor="b", amount=title_amount, floor=8, inset=(0, 0), edit=c.at("lanes", i, "steps", j, "title"))
+            c.text(Box(x, top + text_top, column, text_h), text, amount=text_amount, floor=8, inset=(0, 0.02), edit=c.at("lanes", i, "steps", j, "text"))
+            if not j:
+                continue
+            start, end = middle - pitch + 0.325 + 0.08, middle - 0.325 - 0.08
+            color = RED if j - 1 == key else ARROW_GREY
+            _arc(c, start, end, centre_y - 0.12, color)
+            if step.get("via"):
+                size = max(7.0, 8 - via_amount)
+                lines, width = len(wrap(step["via"], via_w, size)), via_w
+                while width > 0.6 and len(wrap(step["via"], width - 0.05, size)) == lines:
+                    width -= 0.05
+                c.text(
+                    Box((start + end) / 2 - width / 2, top - 0.14, width, 0.38),
+                    [Para(step["via"], 8, color=RED if j - 1 == key else VIA_GREY, align="c", italic=True)],
+                    anchor="b", amount=via_amount, floor=7, inset=(0, 0), edit=c.at("lanes", i, "steps", j, "via"),
+                )
+        if i < len(lanes) - 1:
+            y = top + lane_h + JOURNEY_GAP / 2
+            c.line(box.x, y, box.right, y, SEPARATOR, 1.5, dash="sysDot")
+
+
+def _arc(c: Canvas, start: float, end: float, y: float, color: str) -> None:
+    """A dotted arrow bowing upward from one step to the next."""
+    rise, segments = 0.2, 16
+    points = []
+    for index in range(segments + 1):
+        share = index / segments
+        points.append((Inches(start + (end - start) * share), Inches(y - rise * 4 * share * (1 - share))))
+    builder = c.slide.shapes.build_freeform(*points[0])
+    builder.add_line_segments(points[1:], close=False)
+    arrow = builder.convert_to_shape()
+    arrow.shadow.inherit = False
+    arrow.fill.background()
+    arrow.line.color.rgb = RGBColor.from_string(color)
+    arrow.line.width = Pt(1)
+    line_props = arrow.line._get_or_add_ln()  # noqa: SLF001
+    etree.SubElement(line_props, qn("a:prstDash")).set("val", "sysDot")
+    etree.SubElement(line_props, qn("a:tailEnd")).set("type", "triangle")
+
+
+TIMELINE_LABEL_W = 1.62
+LEGEND = (
+    ("submission", "Submissions"),
+    ("review", "Review windows"),
+    ("milestone", "Milestones"),
+    ("meeting", "Meetings"),
+    ("deliverable", "Key deliverables"),
+)
+
+
+def _timeline(c: Canvas, data: dict, box: Box, deck: dict) -> None:
+    start, end = parse_day(data["start"]), parse_day(data["end"])
+    first = start - timedelta(days=start.weekday())
+    weeks = [first + timedelta(days=7 * index) for index in range((end - first).days // 7 + 1)]
+    chart = Box(box.x + TIMELINE_LABEL_W + 0.07, box.y, box.w - TIMELINE_LABEL_W - 0.07, box.h)
+
+    def at(day: date) -> float:
+        return chart.x + ((day - first).days + 0.5) / (7 * len(weeks)) * chart.w
+
+    header_h = _calendar(c, chart, weeks)
+    milestones = data["milestones"]
+    deliverables = data.get("deliverables") or []
+    meetings = data["meetings"]
+    meeting_name = str(data.get("meeting_name") or "").strip()
+    top_row = [(index, item) for index, item in enumerate(milestones) if item.get("kind") != "review"]
+    review_row = [(index, item) for index, item in enumerate(milestones) if item.get("kind") == "review"]
+    band = Box(chart.x, chart.y + header_h, chart.w, 1.6 if review_row else 0.85)
+    c.rect(band, BAND_GREY)
+    lower = Box(chart.x, band.bottom, chart.w, 0.75 if deliverables else 0)
+    cards_top = lower.bottom + 0.14
+    legend_y = box.bottom - 0.24
+    cards = Box(chart.x, cards_top, chart.w, legend_y - 0.08 - cards_top)
+    headings = (
+        ("milestones_heading", "Key milestones", band, True),
+        ("deliverables_heading", "Key deliverables", lower, True),
+        ("meetings_heading", "Governance meetings", cards, False),
+    )
+    for key, default, area, bold in headings:
+        if area.h > 0:
+            paras = [Para(str(data.get(key) or default), 12, bold=bold, color=RED)]
+            c.text(Box(box.x, area.y, TIMELINE_LABEL_W, area.h), paras, key.replace("_", " "), floor=9, anchor="m", edit=c.at(key))
+
+    order = sorted(range(len(meetings)), key=lambda index: parse_day(meetings[index]["date"]))
+    gap = 0.17
+    card_w = (cards.w - gap * (len(order) - 1)) / len(order)
+    marker_y = band.y + 0.08
+    for position, index in enumerate(order):
+        x = at(parse_day(meetings[index]["date"]))
+        middle = cards.x + position * (card_w + gap) + card_w / 2
+        jog = cards.y - 0.06 - 0.04 * (position % 2)
+        c.line(x, marker_y + 0.06, x, jog, RED, 1)
+        if abs(x - middle) > 0.01:
+            c.line(x, jog, middle, jog, RED, 1)
+        c.line(middle, jog, middle, cards.y, RED, 1)
+
+    _events(c, "milestones", top_row, at, chart, marker_y, band.y + 0.83)
+    _events(c, "milestones", review_row, at, chart, band.y + 0.9, band.bottom - 0.02)
+    for meeting in meetings:
+        x = at(parse_day(meeting["date"]))
+        _marker(c, "meeting", x, x, marker_y)
+    if deliverables:
+        _events(c, "deliverables", list(enumerate(deliverables)), at, chart, lower.y + 0.1, lower.bottom - 0.02)
+
+    inner = card_w - 0.24
+    titles = [[Para(meeting["title"], 11, bold=True, align="c")] for meeting in meetings]
+    title_amount = c.uniform([(titles[index], inner, 0.55, f"meeting {index + 1} title") for index in order], 9)
+    title_h = max(block_height(shrink(paras, title_amount, 9), inner) for paras in titles) + 0.04
+    body_top = 0.32 + title_h + 0.06
+    bodies = [[Para(point, 10, bullet=True, space_before=4) for point in meeting["points"]] for meeting in meetings]
+    body_amount = c.uniform([(bodies[index], inner, cards.h - body_top - 0.1, f"meeting {index + 1} points") for index in order], 8)
+    for position, index in enumerate(order):
+        x = cards.x + position * (card_w + gap)
+        c.rect(Box(x, cards.y, card_w, cards.h), TAN, line=RED, line_width=1)
+        when = parse_day(meetings[index]["date"])
+        lead = f"{meeting_name} #{position + 1}: " if meeting_name else ""
+        header = f"{lead}{when.strftime('%B')} {when.day}"
+        if text_width(header, 9.5, bold=True) > inner - 0.1:
+            header = f"{lead}{when.strftime('%b')} {when.day}"
+        c.text(Box(x + 0.12, cards.y + 0.08, inner, 0.22), [Para(header, 10.5, bold=True, color=RED, align="c", italic=True)], floor=8, max_lines=1)
+        c.text(Box(x + 0.12, cards.y + 0.32, inner, title_h), titles[index], amount=title_amount, floor=9, edit=c.at("meetings", index, "title"))
+        c.text(
+            Box(x + 0.12, cards.y + body_top, inner, cards.h - body_top - 0.06), bodies[index], amount=body_amount, floor=8,
+            edit=c.items(("meetings", index, "points"), range(len(bodies[index]))),
+        )
+
+    used = {item.get("kind") or "milestone" for item in milestones} | {"meeting"} | ({"deliverable"} if deliverables else set())
+    names = {"meeting": f"{meeting_name} meetings" if meeting_name else "Meetings", "deliverable": str(data.get("deliverables_heading") or "Key deliverables")}
+    x = chart.x
+    for kind, default in LEGEND:
+        if kind not in used:
+            continue
+        name = names.get(kind, default)
+        if kind in ("submission", "review"):
+            mark_w = 0.5
+            _marker(c, kind, x + 0.08, x + mark_w - 0.08, legend_y + 0.06)
+        else:
+            mark_w = 0.12
+            _marker(c, kind, x + 0.06, x + 0.06, legend_y + 0.06)
+        width = text_width(name, 9) + 0.15
+        c.text(Box(x + mark_w + 0.04, legend_y, width, 0.24), [Para(name, 9, color=GREY)], anchor="m", amount=0, inset=(0.02, 0))
+        x += mark_w + 0.04 + width + 0.25
+
+
+def _calendar(c: Canvas, chart: Box, weeks: Sequence[date]) -> float:
+    row = 0.23
+    column = chart.w / len(weeks)
+    months: List[List[int]] = []
+    for index, week in enumerate(weeks):
+        month = (week + timedelta(days=3)).replace(day=1)
+        if months and months[-1][0] == month.toordinal():
+            months[-1][2] += 1
+        else:
+            months.append([month.toordinal(), index, 1])
+    for ordinal, first, count in months:
+        cell = Box(chart.x + first * column, chart.y, count * column, row)
+        c.rect(cell, BAND_GREY, line=BLACK, line_width=0.5)
+        if cell.w >= 0.4:
+            name = date.fromordinal(ordinal).strftime("%b")
+            c.text(cell, [Para(name, 10.5, bold=True, align="c")], anchor="m", amount=0, inset=(0.02, 0))
+    size = 10 if column >= 0.5 else 8
+    for index, week in enumerate(weeks):
+        cell = Box(chart.x + index * column, chart.y + row, column, row)
+        c.rect(cell, BAND_GREY, line=BLACK, line_width=0.5)
+        c.text(cell, [Para(f"{week.day:02d}.", size, bold=True, align="c")], anchor="m", amount=0, inset=(0.01, 0))
+    return 2 * row
+
+
+def _events(c: Canvas, group: str, items, at: Callable[[date], float], chart: Box, marker_y: float, bottom: float) -> None:
+    """Markers on their dates, each labelled with its date and text in the space up to its neighbours."""
+    placed = []
+    for index, item in items:
+        when, until = parse_day(item["date"]), parse_day(item["end"]) if item.get("end") else None
+        start_x = at(when)
+        end_x = at(until) if until else start_x
+        placed.append(((start_x + end_x) / 2, start_x, end_x, index, item, when, until))
+    placed.sort(key=lambda entry: entry[0])
+    kind_default = "deliverable" if group == "deliverables" else "milestone"
+    label_y = marker_y + 0.14
+    for position, (anchor, start_x, end_x, index, item, when, until) in enumerate(placed):
+        left = (anchor + placed[position - 1][0]) / 2 if position else chart.x
+        right = (anchor + placed[position + 1][0]) / 2 if position < len(placed) - 1 else chart.right
+        width = max(0.3, min(1.3, right - left - 0.04))
+        x = max(left + 0.02, min(anchor - width / 2, right - width - 0.02))
+        _marker(c, item.get("kind") or kind_default, start_x, end_x, marker_y)
+        stamp = f"{when.month}/{when.day}" + (f"–{until.month}/{until.day}" if until and until != when else "")
+        c.text(Box(x, label_y, width, 0.17), [Para(stamp, 9, align="c")], floor=7, inset=(0.01, 0))
+        words = plain(str(item["label"])).split() or [""]
+        if max(text_width(word, 8) for word in words) > width - 0.02:
+            c.problems.append(
+                f"Slide {c.number} ({c.kind}) {group} {index + 1} label: its date is too close to its neighbours for the label "
+                "to fit. Shorten it to one or two short words, merge nearby items, or drop one."
+            )
+        c.text(
+            Box(x, label_y + 0.17, width, bottom - label_y - 0.17), [Para(item["label"], 9, align="c")], f"{group} {index + 1} label",
+            floor=8, inset=(0.01, 0), edit=c.at(group, index, "label"),
+        )
+
+
+def _marker(c: Canvas, kind: str, start_x: float, end_x: float, y: float) -> None:
+    if kind in ("submission", "review"):
+        width = max(end_x - start_x + 0.16, 0.36)
+        pill = c.rect(
+            Box((start_x + end_x) / 2 - width / 2, y - 0.02, width, 0.16), SUBMISSION_TAN if kind == "submission" else REVIEW_GREY,
+            shape=MSO_SHAPE.ROUNDED_RECTANGLE,
+        )
+        pill.adjustments[0] = 0.5
+        if kind == "submission":
+            for x in sorted({start_x, end_x}):
+                c.rect(Box(x - 0.06, y, 0.12, 0.12), SUBMISSION_BROWN, shape=MSO_SHAPE.ISOSCELES_TRIANGLE)
+    elif kind == "deliverable":
+        c.rect(Box(start_x - 0.06, y + 0.02, 0.12, 0.08), DATE_BLUE, shape=MSO_SHAPE.ISOSCELES_TRIANGLE)
+    elif kind == "meeting":
+        c.rect(Box(start_x - 0.06, y, 0.12, 0.12), RED, shape=MSO_SHAPE.OVAL)
+    else:
+        c.rect(Box(start_x - 0.06, y, 0.12, 0.12), MILESTONE_GREEN, shape=MSO_SHAPE.ISOSCELES_TRIANGLE)
+
+
 def _table(c: Canvas, data: dict, box: Box, deck: dict) -> None:
     columns = [str(value) for value in data["columns"]]
     rows = [[str(value or "") for value in row] for row in data["rows"]]
@@ -988,6 +1280,86 @@ def _rows(c: Canvas, data: dict, box: Box, deck: dict) -> None:
         )
 
 
+HOUSE_RAIL = 0.46
+HOUSE_TOP = 0.47
+HOUSE_BOTTOM = 0.50
+
+
+def _strategy_house(c: Canvas, data: dict, box: Box, deck: dict) -> None:
+    _house_frame(c, box)
+    bands = (("aspiration", box.y, HOUSE_TOP), ("outcome", box.bottom - HOUSE_BOTTOM, HOUSE_BOTTOM))
+    for key, y, height in bands:
+        band = Box(box.x + 0.17, y, box.w - 0.34, height)
+        c.fills.append((band, DEEP_RED))
+        paras = [Para(data[key], 16, bold=True, color=WHITE, align="c", caps=True)]
+        c.text(band, paras, key, floor=11, anchor="m", inset=(0.1, 0.02), max_lines=1, edit=c.at(key))
+    inside = Box(box.x + HOUSE_RAIL, box.y + HOUSE_TOP, box.w - 2 * HOUSE_RAIL, box.h - HOUSE_TOP - HOUSE_BOTTOM)
+    area = Box(inside.x + 0.3, inside.y + 0.4, inside.w - 0.6, inside.h - 0.75)
+    pillars = data["pillars"]
+    count = len(pillars)
+    gap = 0.225
+    width = (area.w - gap * (count - 1)) / count
+    text_w = width - 0.5
+    icon = 0.42
+    with_points = any(pillar.get("points") for pillar in pillars)
+    icon_top = area.y + (0.3 if with_points else 0.7)
+    head_top = icon_top + 0.61
+    head_size, head_floor = (15, 11) if with_points else (18, 12)
+    head_room = 0.95 if with_points else area.bottom - head_top - 0.2
+    heads = [[Para(pillar["heading"], head_size, bold=True, align="c")] for pillar in pillars]
+    head_amount = c.uniform([(paras, text_w, head_room, f"pillar {i + 1} heading") for i, paras in enumerate(heads)], head_floor)
+    head_h = max(block_height(shrink(paras, head_amount, head_floor), text_w) for paras in heads) + 0.08
+    points_top = head_top + head_h + 0.22
+    points_w = width - 0.36
+    bodies = [[Para(point, 12.5, bullet=True, space_before=6) for point in pillar.get("points") or []] for pillar in pillars]
+    body_amount = c.uniform(
+        [(paras, points_w, area.bottom - points_top - 0.15, f"pillar {i + 1} points") for i, paras in enumerate(bodies) if paras], 10
+    )
+    for index in range(count):
+        x = area.x + index * (width + gap)
+        c.rect(Box(x, area.y, width, area.h), LIGHT_GREY, line=STONE_DARK, line_width=1)
+        badge = c.rect(Box(x + (width - icon) / 2, icon_top, icon, icon), None, line=DEEP_RED, shape=MSO_SHAPE.OVAL, line_width=1.25)
+        c.text_in(badge, [Para(str(index + 1), 12, bold=True, color=DEEP_RED, align="c")], 0, 12, (0, 0, 0, 0))
+        c.text(
+            Box(x + 0.25, head_top, text_w, head_h), heads[index], amount=head_amount, floor=head_floor, edit=c.at("pillars", index, "heading")
+        )
+        if not bodies[index]:
+            continue
+        c.line(x + 0.3, points_top - 0.11, x + width - 0.3, points_top - 0.11, STONE_DARK)
+        c.text(
+            Box(x + 0.18, points_top, points_w, area.bottom - points_top - 0.1), bodies[index], amount=body_amount, floor=10,
+            edit=c.items(("pillars", index, "points"), range(len(bodies[index]))),
+        )
+
+
+def _house_frame(c: Canvas, box: Box) -> None:
+    """One closed loop around the pillars, notched so it reads clockwise: up the left rail, down the right."""
+    width, height, rail = box.w, box.h, HOUSE_RAIL
+    depth, gap = 0.24, 0.39
+    left, right = 0.455 * height, 0.502 * height
+    upper = [
+        (width, 0), (width, right), (width - rail / 2, right + depth), (width - rail, right), (width - rail, HOUSE_TOP),
+        (rail, HOUSE_TOP), (rail, left), (rail / 2, left - depth), (0, left),
+    ]
+    lower = [
+        (rail, left + gap), (rail, height - HOUSE_BOTTOM), (width - rail, height - HOUSE_BOTTOM), (width - rail, right + gap),
+        (width - rail / 2, right + gap + depth), (width, right + gap), (width, height), (0, height), (0, left + gap),
+    ]
+
+    def point(x: float, y: float) -> Tuple[int, int]:
+        return Inches(box.x + x), Inches(box.y + y)
+
+    builder = c.slide.shapes.build_freeform(*point(0, 0))
+    builder.add_line_segments([point(x, y) for x, y in upper], close=True)
+    builder.move_to(*point(rail / 2, left + gap - depth))
+    builder.add_line_segments([point(x, y) for x, y in lower], close=True)
+    frame = builder.convert_to_shape()
+    frame.shadow.inherit = False
+    frame.fill.solid()
+    frame.fill.fore_color.rgb = RGBColor.from_string(DEEP_RED)
+    frame.line.fill.background()
+
+
 def _statement(c: Canvas, data: dict, box: Box, deck: dict) -> None:
     kept = [index for index, point in enumerate(data.get("points") or []) if str(point).strip()]
     points = [data["points"][index] for index in kept]
@@ -1039,11 +1411,14 @@ DRAW: Dict[str, Callable[[Canvas, dict, Box, dict], None]] = {
     "kpis": _kpis,
     "cards": _cards,
     "process": _process,
+    "journey": _journey,
     "roadmap": _roadmap,
+    "timeline": _timeline,
     "table": _table,
     "chart": _chart,
     "comparison": _comparison,
     "rows": _rows,
+    "strategy_house": _strategy_house,
     "statement": _statement,
     "agenda": _agenda,
 }

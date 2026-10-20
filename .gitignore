@@ -13,6 +13,8 @@ coverage/
 assets/templates/*.pptx
 !assets/templates/.gitkeep
 data/
+ppt-content/
+ppt-generator/
 *.pdf
 *.png
 .DS_Store

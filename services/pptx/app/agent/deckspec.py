@@ -2,6 +2,7 @@
 
 import json
 import re
+from datetime import date
 from typing import Dict, List, Optional, Tuple
 
 
@@ -29,6 +30,9 @@ HEADER = {
 }
 
 CHART_TYPES = ("column", "bar", "line", "stacked_column")
+MILESTONE_KINDS = ("milestone", "submission", "review")
+TIMELINE_DAYS = 183
+TIMELINE_GROUPS = ("milestones", "deliverables", "meetings")
 
 TYPES: Dict[str, dict] = {
     "executive_summary": {
@@ -57,6 +61,37 @@ TYPES: Dict[str, dict] = {
         "fields": {"steps": L(O({"heading": S(32), "points": L(S(110), 1, 3)}), 3, 6)},
         "example": {"steps": [{"heading": "Discover", "points": ["What happens here", "**Gap**: where clients drop off"]}]},
     },
+    "journey": {
+        "use": (
+            "A client or user journey map: one or two lanes (segments or personas), each a left-to-right sequence of steps "
+            "with the channel or hand-off on the arrow into each step (via). Set highlight to the number of the one step that "
+            "is the point of the slide, such as where channels meet or clients drop off. Use process for a method without lanes."
+        ),
+        "fields": {
+            "lanes": L(
+                O({
+                    "name": S(30),
+                    "description": S(80, False),
+                    "steps": L(O({"title": S(24), "text": S(90), "via": S(36, False)}), 2, 6),
+                    "highlight": S(1, False),
+                }),
+                1, 2,
+            ),
+        },
+        "example": {
+            "lanes": [{
+                "name": "Simple needs",
+                "description": "Little information needed, short tasks",
+                "steps": [
+                    {"title": "Research", "text": "**Digital discovery** of simple products"},
+                    {"title": "Self-serve", "text": "Client completes the task **digitally**", "via": "Mobile / web"},
+                    {"title": "Hand-off", "text": "**Appointment booking** offered in the app", "via": "Mobile / web"},
+                    {"title": "Advice", "text": "Adviser **fulfils the need**", "via": "Video or in person"},
+                ],
+                "highlight": "3",
+            }],
+        },
+    },
     "roadmap": {
         "use": "Work phased over time: workstreams (lanes) across periods. Identical text in neighbouring cells merges into one bar.",
         "fields": {
@@ -64,6 +99,36 @@ TYPES: Dict[str, dict] = {
             "lanes": L(O({"name": S(28), "cells": L(S(48, False), 3, 6)}), 2, 5),
         },
         "example": {"periods": ["Q1", "Q2", "Q3"], "lanes": [{"name": "Data", "cells": ["Client 360 MVP", "Client 360 MVP", "Scale"]}]},
+    },
+    "timeline": {
+        "use": (
+            "A dated calendar of up to 26 weeks: milestones on their real dates, optional key deliverables, and two to five "
+            "governance meetings with the topics each covers. Write every date as YYYY-MM-DD and copy it from the sources. "
+            "Milestone kind is milestone (default), submission, or review; a review is a window and takes an end date. "
+            "Use roadmap instead for workstreams by quarter."
+        ),
+        "fields": {
+            "start": S(10),
+            "end": S(10),
+            "milestones_heading": S(30, False),
+            "milestones": L(O({"date": S(10), "end": S(10, False), "label": S(36), "kind": S(10, False)}), 1, 10),
+            "deliverables_heading": S(30, False),
+            "deliverables": L(O({"date": S(10), "label": S(36)}), 0, 8, False),
+            "meetings_heading": S(50, False),
+            "meeting_name": S(20, False),
+            "meetings": L(O({"date": S(10), "title": S(40), "points": L(S(90), 1, 3)}), 2, 5),
+        },
+        "example": {
+            "start": "2026-06-15",
+            "end": "2026-09-25",
+            "milestones": [
+                {"date": "2026-07-20", "label": "Leadership offsite"},
+                {"date": "2026-08-04", "end": "2026-08-07", "label": "Executive review", "kind": "review"},
+            ],
+            "deliverables": [{"date": "2026-07-17", "label": "June results"}],
+            "meeting_name": "SteerCo",
+            "meetings": [{"date": "2026-07-06", "title": "Setup and early answers", "points": ["Review **early answers**"]}],
+        },
     },
     "table": {
         "use": "Many attributes across several items, when a grid is the clearest form (targets vs. actuals, option comparison, owners and dates).",
@@ -108,6 +173,23 @@ TYPES: Dict[str, dict] = {
             "items": L(O({"heading": S(45), "detail": S(110, False), "points": L(S(140), 1, 2)}), 3, 5),
         },
         "example": {"left_header": "Risk", "right_header": "Mitigation", "items": [{"heading": "Cyber and fraud", "detail": "Rising attack volume", "points": ["**24/7 monitoring** and controls testing"]}]},
+    },
+    "strategy_house": {
+        "use": (
+            "A strategy on one page: the aspiration in the top band, three to five pillars that deliver it, and the outcome "
+            "in the bottom band. The two bands can read as one sentence, the top ending and the bottom starting with an "
+            "ellipsis. Pillars usually carry a short heading only. Use for a strategy or programme structure, at most once."
+        ),
+        "fields": {
+            "aspiration": S(80),
+            "pillars": L(O({"heading": S(40), "points": L(S(80), 0, 3, False)}), 3, 5),
+            "outcome": S(80),
+        },
+        "example": {
+            "aspiration": "Be the primary digital partner for our clients…",
+            "pillars": [{"heading": "Grow in priority segments"}, {"heading": "Make it easier to do business with us"}],
+            "outcome": "…to drive sustainable, profitable growth",
+        },
     },
     "statement": {
         "use": "One pivotal message that deserves a whole slide, with up to three short supporting points. Use at most once.",
@@ -299,6 +381,56 @@ def _type_rules(kind: str, slide: dict, where: str) -> List[str]:
         for series in slide.get("series") or []:
             if isinstance(series, dict) and isinstance(series.get("values"), list) and len(series["values"]) != len(categories):
                 errors.append(f"{where} series {series.get('name')!r} needs one value per category ({len(categories)}).")
+    if kind == "timeline":
+        errors.extend(_timeline_rules(slide, where))
+    if kind == "journey":
+        for number, lane in enumerate(slide.get("lanes") or [], start=1):
+            if not isinstance(lane, dict) or not lane.get("highlight"):
+                continue
+            steps = lane.get("steps") if isinstance(lane.get("steps"), list) else []
+            if str(lane["highlight"]).strip() not in {str(index) for index in range(1, len(steps) + 1)}:
+                errors.append(f"{where} lanes #{number} highlight must be a step number from 1 to {len(steps)}.")
+    return errors
+
+
+def parse_day(value) -> Optional[date]:
+    try:
+        return date.fromisoformat(str(value).strip())
+    except ValueError:
+        return None
+
+
+def _timeline_rules(slide: dict, where: str) -> List[str]:
+    errors: List[str] = []
+
+    def day(value, label: str) -> Optional[date]:
+        if value in (None, ""):
+            return None
+        parsed = parse_day(value)
+        if parsed is None:
+            errors.append(f"{where} {label} must be a date written YYYY-MM-DD, not {value!r}.")
+        return parsed
+
+    start, end = day(slide.get("start"), "start"), day(slide.get("end"), "end")
+    if start and end:
+        if end <= start:
+            errors.append(f"{where} end must come after start.")
+        elif (end - start).days > TIMELINE_DAYS:
+            errors.append(f"{where} covers {(end - start).days // 7} weeks; keep it to 26 weeks or use a roadmap.")
+    for group in TIMELINE_GROUPS:
+        for number, item in enumerate(slide.get(group) or [], start=1):
+            if not isinstance(item, dict):
+                continue
+            label = f"{group} #{number}"
+            when, until = day(item.get("date"), f"{label} date"), day(item.get("end"), f"{label} end")
+            if when and start and end and not start <= when <= end:
+                errors.append(f"{where} {label} date {when} falls outside start to end; widen the calendar or drop it.")
+            if when and until and until < when:
+                errors.append(f"{where} {label} end must not come before its date.")
+            if until and end and until > end:
+                errors.append(f"{where} {label} end {until} falls after the calendar end.")
+            if group == "milestones" and item.get("kind") and item["kind"] not in MILESTONE_KINDS:
+                errors.append(f"{where} {label} kind must be one of: {', '.join(MILESTONE_KINDS)}.")
     return errors
 
 
@@ -336,14 +468,43 @@ def unsupported_figures(deck: dict, sources: str) -> List[str]:
             for value in (series.get("values") or []) if isinstance(series, dict) else []:
                 if isinstance(value, (int, float)) and not isinstance(value, bool):
                     consider(_core(repr(value)))
+        if slide.get("type") == "timeline":
+            for group in TIMELINE_GROUPS:
+                for item in slide.get(group) or []:
+                    for key in ("date", "end"):
+                        value = item.get(key) if isinstance(item, dict) else None
+                        if value and value not in found and not _date_mentioned(value, sources):
+                            found.append(value)
     return found[:12]
+
+
+MONTHS = (
+    ("january", "jan"), ("february", "feb"), ("march", "mar"), ("april", "apr"), ("may", "may"), ("june", "jun"),
+    ("july", "jul"), ("august", "aug"), ("september", "sept", "sep"), ("october", "oct"), ("november", "nov"), ("december", "dec"),
+)
+
+
+def _date_mentioned(value, sources: str) -> bool:
+    """Whether a YYYY-MM-DD date appears in the sources in any common form (July 6, 6 July, 7/6, 2026-07-06)."""
+    day = parse_day(value)
+    if day is None:
+        return True
+    names = "|".join(MONTHS[day.month - 1])
+    number = rf"0?{day.day}(?:st|nd|rd|th)?"
+    patterns = (
+        rf"\b(?:{names})\.?,?\s+{number}\b",
+        rf"\b{number}\s+(?:of\s+)?(?:{names})\b",
+        rf"(?<![\d/]){day.month}/{day.day}(?![\d])|(?<![\d/])0{day.month}/0?{day.day}(?![\d])",
+        re.escape(day.isoformat()),
+    )
+    return any(re.search(pattern, sources, re.IGNORECASE) for pattern in patterns)
 
 
 def _strings(value) -> List[str]:
     if isinstance(value, str):
         return [value]
     if isinstance(value, dict):
-        return [text for key, item in value.items() if key not in {"type", "date"} for text in _strings(item)]
+        return [text for key, item in value.items() if key not in {"type", "date", "start", "end"} for text in _strings(item)]
     if isinstance(value, list):
         return [text for item in value for text in _strings(item)]
     return []

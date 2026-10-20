@@ -81,6 +81,7 @@ export type RegionPara = {
   space_before: number;
   caps: boolean;
   spacing: number;
+  italic?: boolean;
 };
 
 /** A piece of text on a slide preview: where it is drawn (inches) and which deck fields it shows. */
