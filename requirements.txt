@@ -1,0 +1,64 @@
+# Every Python package the deck service needs, pinned to the versions it is tested with.
+# Install with:  python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
+#
+# Not installable with pip, but required:
+#   - Python 3.9 or newer
+#   - Node.js 20 or newer (for the web app: npm install)
+#   - LibreOffice (soffice) and Poppler (pdftoppm) on the PATH. Without them the
+#     slide previews are blank and the visual review step is skipped.
+#       macOS:   brew install --cask libreoffice && brew install poppler
+#       Windows: install LibreOffice, add C:\Program Files\LibreOffice\program to PATH,
+#                then choco install poppler
+#       Linux:   sudo apt install libreoffice poppler-utils
+#
+# The loose version ranges the code relies on are in services/pptx/requirements.txt.
+
+# Web server
+fastapi==0.128.8
+starlette==0.49.3
+uvicorn[standard]==0.39.0
+python-multipart==0.0.20
+httptools==0.9.0
+uvloop==0.23.0; sys_platform != "win32"
+watchfiles==1.1.1
+websockets==15.0.1
+python-dotenv==1.2.1
+PyYAML==6.0.3
+click==8.1.8
+colorama==0.4.6; sys_platform == "win32"
+h11==0.16.0
+anyio==4.12.1
+idna==3.20
+exceptiongroup==1.3.1; python_version < "3.11"
+annotated-doc==0.0.5
+
+# Settings and data models
+pydantic==2.13.5
+pydantic_core==2.46.5
+pydantic-settings==2.11.0
+annotated-types==0.7.0
+typing-inspection==0.4.2
+typing_extensions==4.16.0
+
+# OpenRouter client
+httpx==0.28.1
+httpcore==1.0.9
+certifi==2026.10.19
+
+# Building slides and measuring text
+python-pptx==1.0.2
+lxml==6.1.3
+pillow==11.3.0
+xlsxwriter==3.2.9
+
+# Reading uploaded sources
+pypdf==5.9.0
+python-docx==1.2.0
+
+# Tests
+pytest==8.4.2
+iniconfig==2.1.0
+packaging==26.3
+pluggy==1.6.0
+Pygments==2.21.0
+tomli==2.5.0; python_version < "3.11"
